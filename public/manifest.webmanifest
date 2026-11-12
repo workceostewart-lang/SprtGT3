@@ -1,0 +1,11 @@
+{
+  "name": "Sprt GT3",
+  "short_name": "Sprt GT3",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#182125",
+  "theme_color": "#182125",
+  "icons": [{"src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]
+}

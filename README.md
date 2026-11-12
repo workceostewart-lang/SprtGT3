@@ -45,5 +45,7 @@ Cross-network WebRTC connectivity depends on participants' network configuration
 ## Mobile controls
 Hold the left/right virtual arrows with your left thumb and the GAS or BRAKE pedal with your right thumb. Multi-touch supports steering and a pedal simultaneously; releasing a touch, losing focus, or opening the menu clears held controls.
 
+Portrait and landscape both fill the available screen and resize during an active race. The circuit extends edge to edge while buttons and HUD panels respect display cutouts. Touch race/room buttons request browser fullscreen where supported; the header also provides a Full screen toggle. No orientation is locked. On browsers without the Fullscreen API, the game fills the browser viewport; Add to Home Screen opens the included web app in standalone/fullscreen mode where supported.
+
 ## Publishing
 Run `npm run build`, commit and push main, then `npm run deploy` to publish the standalone Cloudflare Worker. Copy `dist` to the Fantomzone repository at `public/games/sprt-gt3`, commit and push the hub, build the hub and run its deploy command. The hub catalog cover is `public/sprt-gt3-cover.png`.

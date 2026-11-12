@@ -1,4 +1,5 @@
 import { installTouchControls } from './touch-controls.js';
+import { installViewport } from './viewport.js';
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {Room} from './network.js';
@@ -15,9 +16,12 @@ function selectCar(value){carChoice=value;document.querySelectorAll('[data-car]'
 selectCar(carChoice);document.querySelectorAll('[data-car]').forEach(b=>b.onclick=()=>selectCar(b.dataset.car));
 let renderer;
 try{renderer=new THREE.WebGLRenderer({canvas:$('world'),antialias:true,powerPreference:'high-performance'});}catch(e){$('loadText').textContent='3D graphics are unavailable. Enable hardware acceleration or try a WebGL-capable browser.';throw e;}
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
 const scene=new THREE.Scene();scene.background=new THREE.Color('#a6b8c4');scene.fog=new THREE.Fog('#a6b8c4',290,780);
 const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.15,1500);
+const viewport=installViewport({root:$('game'),renderer,camera,fullscreenButton:$('fullscreen')});
+const touchDevice=()=>matchMedia('(any-pointer:coarse)').matches||navigator.maxTouchPoints>0;
+const mobileFullscreen=()=>{if(touchDevice())void viewport.enterFullscreen();};
 scene.add(new THREE.HemisphereLight(0xdcecff,0x7e7848,2));const sun=new THREE.DirectionalLight(0xffe5bc,3.0);sun.position.set(-90,150,-150);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-35,right:35,top:35,bottom:-35,near:1,far:400});sun.shadow.bias=-.0005;scene.add(sun,sun.target);
 const loader=new GLTFLoader();
 async function load(){try{const track=await loader.loadAsync(import.meta.env.BASE_URL+'track.glb',p=>{if(p.total)$('loadText').textContent=`Loading circuit · ${Math.round(p.loaded/p.total*100)}%`;});track.scene.traverse(o=>{if(o.isMesh){o.receiveShadow=true;if(o.material){o.material.roughness=.85;}}});scene.add(track.scene);$('loadText').textContent='Preparing the three GT3 cars…';await Promise.all(['red','yellow','blue'].map(async c=>{const data=await loader.loadAsync(import.meta.env.BASE_URL+c+'.glb');data.scene.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});templates[c]=data.scene;}));
@@ -26,18 +30,17 @@ async function load(){try{const track=await loader.loadAsync(import.meta.env.BAS
  loaded=true;setVisible('loading',false);setVisible('menu',true);const query=new URLSearchParams(location.search).get('room');if(query)$('roomInput').value=query.toUpperCase();}
  catch(e){console.error(e);$('loadText').textContent='The circuit could not load. Refresh to retry.';}}
 load();
-window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
 function resetMeshes(){for(const m of meshes.values())scene.remove(m);meshes.clear();cameraInit=false;}
 function showRace(r){race=r;mode='race';paused=false;finishedShown=false;keys.clear();touchControls.clear();resetMeshes();for(const id of ['menu','lobby','pause','results'])setVisible(id,false);setVisible('hud',true);setVisible('menuButton',true);setVisible('touch',matchMedia('(any-pointer:coarse)').matches||navigator.maxTouchPoints>0);$('menuStatus').textContent='';acc=0;}
-function startSolo(){if(!loaded)return;room?.close();room=null;myId='you';showRace(newRace([{...player(),id:myId}],$('difficulty').value));}
+function startSolo(){if(!loaded)return;mobileFullscreen();room?.close();room=null;myId='you';showRace(newRace([{...player(),id:myId}],$('difficulty').value));}
 $('solo').onclick=startSolo;
 function drawRoster(list){$('roster').replaceChildren();list.forEach((p,i)=>{const el=document.createElement('div');el.className='roster-row';const name=document.createElement('span');const dot=document.createElement('i');dot.className='driver-dot';dot.style.background=colors[p.car];name.append(dot,document.createTextNode(p.name));const tag=document.createElement('small');tag.textContent=i===0?'HOST':p.id===myId?'YOU':'CONNECTED';el.append(name,tag);$('roster').append(el);});$('lobbyHint').textContent=`${list.length}/4 human racers · CPUs fill the six-car grid. ${room?.host?'Keep this tab open while hosting.':'The host chooses difficulty and starts the race.'}`;}
 function events(){return {roster:list=>drawRoster(list),input:(id,input)=>{inputs[id]={...input,received:performance.now()};},start:r=>showRace(r),state:r=>{if(mode==='race'){race=r;}},left:id=>{if(race){const c=race.cars.find(c=>c.id===id);if(c)c.disconnected=true;}},error:msg=>{returnMenu();error(msg);},notice:msg=>{$('lobbyStatus').textContent=msg;}};}
 async function multiplayer(host){$('menuStatus').textContent=host?'Creating room…':'Connecting to room…';$('create').disabled=$('join').disabled=true;room?.close();const pending=new Room(events());room=pending;try{if(host)await pending.create(player());else await pending.join($('roomInput').value,player());if(room!==pending)return;myId=room.myId;mode='lobby';setVisible('menu',false);setVisible('lobby',true);$('roomCode').textContent=room.code;setVisible('startRoom',host);$('lobbyStatus').textContent='';drawRoster(room.roster);$('menuStatus').textContent='';}catch(e){pending.close();if(room===pending)room=null;error(e.message);}finally{$('create').disabled=$('join').disabled=false;}}
-$('create').onclick=()=>multiplayer(true);$('join').onclick=()=>multiplayer(false);$('roomInput').onkeydown=e=>{if(e.key==='Enter')multiplayer(false);};
+$('create').onclick=()=>{mobileFullscreen();multiplayer(true);};$('join').onclick=()=>{mobileFullscreen();multiplayer(false);};$('roomInput').onkeydown=e=>{if(e.key==='Enter')multiplayer(false);};
 $('copy').onclick=async()=>{try{await navigator.clipboard.writeText(room.code);$('copy').textContent='Copied';setTimeout(()=>$('copy').textContent='Copy code',1800);}catch{$('lobbyStatus').textContent='Select and copy the room code above.';}};
 function startRoom(){if(!room?.host)return;const r=newRace(room.roster,$('difficulty').value);room.start(r);showRace(r);}
-$('startRoom').onclick=startRoom;
+$('startRoom').onclick=()=>{mobileFullscreen();startRoom();};
 function returnMenu(){room?.close();room=null;race=null;paused=false;mode='menu';keys.clear();touchControls.clear();resetMeshes();for(const id of ['hud','pause','results','lobby','touch','menuButton'])setVisible(id,false);setVisible('menu',true);}
 $('leave').onclick=returnMenu;$('quit').onclick=returnMenu;$('resultExit').onclick=returnMenu;$('brand').onclick=e=>{e.preventDefault();if(mode==='race')togglePause();};
 function togglePause(){if(mode!=='race'||finishedShown)return;const opening=$('pause').hidden;setVisible('pause',opening);keys.clear();touchControls.clear();paused=opening&&!room;$('pauseTitle').textContent=room?'Race is still live.':'Race paused.';$('pauseText').textContent=room?'Multiplayer keeps running while the menu is open.':'Take a breath. Your grid is waiting.';}
@@ -48,6 +51,9 @@ window.addEventListener('beforeunload',()=>room?.close());
 window.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>{keys.clear();touchControls.clear();if(mode==='race'&&!room&&!paused&&!finishedShown)togglePause();});
 const touchPressed=new Set();
 const touchControls=installTouchControls($('touch'),pressed=>{touchPressed.clear();for(const k of pressed)touchPressed.add(k);});
+const clearDrivingInput=()=>{keys.clear();touchControls.clear();};
+window.screen.orientation?.addEventListener('change',clearDrivingInput);
+window.addEventListener('orientationchange',clearDrivingInput);
 const held=k=>keys.has(k)||touchPressed.has(k);
 function getInput(){if(!$('pause').hidden||finishedShown)return {};return {throttle:held('arrowup')||held('w'),brake:held('arrowdown')||held('s'),steer:(held('arrowleft')||held('a')?1:0)-(held('arrowright')||held('d')?1:0),reset:held('r')};}
 // Host owns all simulation. Remote peers only send control inputs.
